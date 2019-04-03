@@ -1,6 +1,5 @@
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Scanner;
 
 public class Main {
@@ -11,6 +10,7 @@ public class Main {
 	private int[] total;
 	private int[] available;
 	private int numOfTasks;
+	private int numOfResources;
 	
 	@SuppressWarnings("resource")
 	protected void processInput(String filePath) {
@@ -43,6 +43,7 @@ public class Main {
 						resources.add(r);
 					}
 					this.setResources(resources);
+					this.setNumOfResources(differentResourceTypes);
 					count = -1;
 					processedInput = new int[(this.getResources().size()*this.getNumOfTasks()*3)+this.getNumOfTasks()][4];
 				} else {
@@ -68,19 +69,19 @@ public class Main {
 	}
 	
 	protected void populateBankersTable() {
-		int[][][] bankersTable = new int[this.getNumOfTasks()][3][this.getResources().size()];
+		int numOfResources = this.getNumOfResources();
+		int[][][] bankersTable = new int[this.getNumOfTasks()][3][numOfResources];
 		int[][] processedInput = this.getProcessedInput();
-		int[][] initialClaim = new int[this.getNumOfTasks()][this.getResources().size()];
-		ArrayList<Resource> resources = this.getResources();
-		int[] total = new int[this.getResources().size()];
-		int[] available = new int[this.getResources().size()];
-		int[] currentClaim = new int[this.getResources().size()];
-		int m = this.getResources().size()*3 + 1;
+		int[][] initialClaim = new int[this.getNumOfTasks()][numOfResources];
+		int[] total = new int[numOfResources];
+		int[] available = new int[numOfResources];
+		int[] currentClaim = new int[numOfResources];
+		int m = numOfResources*3 + 1;
 		int n = 0;
 		int p = 0;
 		
 		for (int i = 0; i < processedInput.length; i++) {
-			if (i % m >= 0 && i % m < this.getResources().size()) {
+			if (i % m >= 0 && i % m < numOfResources) {
 				
 				currentClaim[n] = processedInput[i][3];
 				n++;
@@ -89,10 +90,10 @@ public class Main {
 					n = 0;
 			}
 			
-			else if (i % m == this.getResources().size()) {
+			else if (i % m == numOfResources) {
 				initialClaim[p] = currentClaim;
 				p++;
-				currentClaim = new int[this.getResources().size()];
+				currentClaim = new int[numOfResources];
 			}
 		}
 		
@@ -113,16 +114,7 @@ public class Main {
 	}
 	
 	protected void BankersAlgorithm() {
-		ArrayList<Resource> resources = this.getResources();
-		int[][] processedInput = this.getProcessedInput();
-		int finished = 0;
-		int cycle = 0;
 		
-		while (finished < this.getNumOfTasks()) {
-			if (cycle == 0) {
-				
-			}
-		}
 	}
 	
 	public static void main(String[] args) {
@@ -178,6 +170,14 @@ public class Main {
 
 	public void setBankersTable(int[][][] bankersTable) {
 		this.bankersTable = bankersTable;
+	}
+
+	public int getNumOfResources() {
+		return numOfResources;
+	}
+
+	public void setNumOfResources(int numOfResources) {
+		this.numOfResources = numOfResources;
 	}
 	
 }
