@@ -1,6 +1,5 @@
 import java.io.File;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.Scanner;
 
 public class Main {
@@ -141,29 +140,124 @@ public class Main {
 					release.add(processedInput[i]);
 					t.setRelease(release);
 				}
-				if (index == mod-1)
+				if (index == mod-1) {
+					int[] requestRemaining = new int[numOfResources];
+					for (int j = 0; j < requestRemaining.length; j++) {
+						requestRemaining[j] = t.getRequest().get(j)[3];
+					}
+					t.setRequestRemaining(requestRemaining);
 					tasks.add(t);
+				}
 			}
 		}
 		this.setTasks(tasks);
 	}
 	
 	protected void BankersAlgorithm() {
-		int[][] processedInput = this.getProcessedInput();
+		int[][][] bankersTable = this.getBankersTable();
+//		int[][] processedInput = this.getProcessedInput();
 		ArrayList<Task> tasks = this.getTasks();
-		LinkedList<Task> granted = new LinkedList<Task>();
-		LinkedList<Task> waiting = new LinkedList<Task>();
-		int[] total = this.getTotal();
+//		LinkedList<Task> granted = new LinkedList<Task>();
+		ArrayList<Task> blocked = new ArrayList<Task>();
+		ArrayList<Task> done = new ArrayList<Task>();
+//		int[] total = this.getTotal();
 		int[] available = this.getAvailable();
 		int numOfResources = this.getNumOfResources();
 		int numOfTasks = this.getNumOfTasks();
 		int finished = 0;
 		int cycle = numOfResources;
-		while (finished < numOfTasks) {
-			for (int i = 0; i < numOfResources; i++) {
-				for (int j = 0; j < numOfTasks; j++) {
-					
+//		boolean canBreak;
+		while (done.size() < numOfTasks) {
+			ArrayList<Task> newBlocked = new ArrayList<Task>();
+			ArrayList<Task> newSafe = new ArrayList<Task>();
+			ArrayList<Task> newDone = new ArrayList<Task>();
+			
+			for (int i = 0; i < tasks.size(); i++) {
+				int count = 0;
+				for (int j = 0; j < numOfResources; j++) {
+					if (tasks.get(i).getRequestRemaining()[j] != 0)
+						break;
+					else
+						count++;
 				}
+				if (count == numOfResources) {
+					newDone.add(tasks.get(i));
+					for (int k = 0; k < available.length; k++) {
+						available[k] += bankersTable[i][1][k];
+					}
+					// Change bankers table to arraylist<object> so we know
+					// which row corresponds to which task in the other
+					// data structures
+				}
+			}
+
+			if (newDone.size() != 0) {
+				for (int i = 0; i < newDone.size(); i++) {
+					done.add(newDone.get(i));
+					tasks.remove(newDone.get(i));
+				}
+			}
+			
+			if (blocked.size() != 0) {
+				for (int i = 0; i < blocked.size(); i++) {
+					// check if any blocked tasks are safe to grant requests
+					ArrayList<int[]> request = blocked.get(i).getRequest();
+					int[] potentialAvailable = new int[numOfResources];
+					int[] potentialGranted = bankersTable[i][2];
+					int[] potentialAllocated = bankersTable[i][1];
+					int[] requestRemaining = blocked.get(i).getRequestRemaining();
+					for (int j = 0; j < potentialGranted.length; j++) {
+						potentialGranted[j] -= request.get(j)[3];
+						potentialAvailable[j] = available[j] - request.get(j)[3];
+						potentialAllocated[j] += request.get(j)[3];
+						if (potentialGranted[j] <= potentialAvailable[j]) {
+							bankersTable[i][2] = potentialGranted;
+							bankersTable[i][1] = potentialAllocated;
+							available[j] = potentialAvailable[j];
+							requestRemaining[j] -= request.get(j)[3];
+						} else {
+							if (!newSafe.contains(blocked.get(i)))
+								newSafe.add(blocked.get(i));
+						}
+					}
+				}
+			}
+			for (int i = 0; i < tasks.size(); i++) {
+				ArrayList<int[]> request = tasks.get(i).getRequest();
+				int[] potentialAvailable = new int[numOfResources];
+				int[] potentialGranted = bankersTable[i][2];
+				int[] potentialAllocated = bankersTable[i][1];
+				int[] requestRemaining = tasks.get(i).getRequestRemaining();
+				for (int j = 0; j < potentialGranted.length; j++) {
+					potentialGranted[j] -= request.get(j)[3];
+					potentialAvailable[j] = available[j] - request.get(j)[3];
+					potentialAllocated[j] += request.get(j)[3];
+					if (potentialGranted[j] <= potentialAvailable[j]) {
+						bankersTable[i][2] = potentialGranted;
+						bankersTable[i][1] = potentialAllocated;
+						available[j] = potentialAvailable[j];
+						requestRemaining[j] -= request.get(j)[3];
+					} else {
+						if (!newBlocked.contains(tasks.get(i)))
+							newBlocked.add(tasks.get(i));
+					}
+				}
+			}
+			if (newSafe.size() != 0) {
+				for (int i = 0; i < newSafe.size(); i++) {
+					tasks.add(newSafe.get(i));
+					blocked.remove(newSafe.get(i));
+				}
+			}
+			if (newBlocked.size() != 0) {
+				for (int i = 0; i < newBlocked.size(); i++) {
+					blocked.add(newBlocked.get(i));
+					tasks.remove(newBlocked.get(i));
+				}
+			}
+			if (blocked.size() == numOfTasks) {
+				System.err.println("WARNING: DEADLOCK");
+				System.exit(0);
 			}
 			cycle++;
 		}
