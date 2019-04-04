@@ -1,43 +1,34 @@
+import java.util.ArrayList;
 
 public class Task {
 
-	private int[][] initiate;
-	private int[][] request;
-	private int[][] release;
-	private int terminate;
+	private ArrayList<int[]> initiate;
+	private ArrayList<int[]> request;
+	private ArrayList<int[]> release;
 	
 	public Task() {}
 
-	public int[][] getInitiate() {
+	public ArrayList<int[]> getInitiate() {
 		return initiate;
 	}
 
-	public void setInitiate(int[][] initiate) {
+	public void setInitiate(ArrayList<int[]> initiate) {
 		this.initiate = initiate;
 	}
 
-	public int[][] getRequest() {
+	public ArrayList<int[]> getRequest() {
 		return request;
 	}
 
-	public void setRequest(int[][] request) {
+	public void setRequest(ArrayList<int[]> request) {
 		this.request = request;
 	}
 
-	public int[][] getRelease() {
+	public ArrayList<int[]> getRelease() {
 		return release;
 	}
 
-	public void setRelease(int[][] release) {
+	public void setRelease(ArrayList<int[]> release) {
 		this.release = release;
 	}
-
-	public int getTerminate() {
-		return terminate;
-	}
-
-	public void setTerminate(int terminate) {
-		this.terminate = terminate;
-	}
-
 }

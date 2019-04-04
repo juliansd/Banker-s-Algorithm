@@ -1,16 +1,19 @@
 import java.io.File;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.Scanner;
 
 public class Main {
 
 	private ArrayList<Resource> resources;
 	private int[][][] bankersTable;
+	private ArrayList<Task> tasks;
 	private int[][] processedInput;
 	private int[] total;
 	private int[] available;
 	private int numOfTasks;
 	private int numOfResources;
+	private int mod;
 	
 	@SuppressWarnings("resource")
 	protected void processInput(String filePath) {
@@ -62,6 +65,7 @@ public class Main {
 				}
 			}
 			
+			this.setMod((this.getNumOfResources()*3)+1);
 			this.setProcessedInput(processedInput);
 			
 		} catch (Exception e) {}
@@ -113,15 +117,64 @@ public class Main {
 		this.setAvailable(available);
 	}
 	
+	protected void populateTasks() {
+		int[][] processedInput = this.getProcessedInput();
+		ArrayList<Task> tasks = new ArrayList<Task>(this.getNumOfTasks());
+		int mod = this.getMod();
+		int numOfResources = this.getNumOfResources();
+		ArrayList<int[]> initiate = new ArrayList<int[]>(numOfResources);
+		ArrayList<int[]> request = new ArrayList<int[]>(numOfResources);
+		ArrayList<int[]> release = new ArrayList<int[]>(numOfResources);
+		Task t = new Task();
+		for (int i = 0; i < processedInput.length; i++) {
+			int index = (i+1) % mod;
+			if (index == 0) {
+				t = new Task();
+			} else {
+				if (index >= 1 && index <= numOfResources) {
+					initiate.add(processedInput[i]);
+					t.setInitiate(initiate);
+				} else if (index >= numOfResources+1 && index <= numOfResources*2) {
+					request.add(processedInput[i]);
+					t.setRequest(request);
+				} else if (index >= (numOfResources*2)+1 && index <= numOfResources*3) {
+					release.add(processedInput[i]);
+					t.setRelease(release);
+				}
+				if (index == mod-1)
+					tasks.add(t);
+			}
+		}
+		this.setTasks(tasks);
+	}
+	
 	protected void BankersAlgorithm() {
-		
+		int[][] processedInput = this.getProcessedInput();
+		ArrayList<Task> tasks = this.getTasks();
+		LinkedList<Task> granted = new LinkedList<Task>();
+		LinkedList<Task> waiting = new LinkedList<Task>();
+		int[] total = this.getTotal();
+		int[] available = this.getAvailable();
+		int numOfResources = this.getNumOfResources();
+		int numOfTasks = this.getNumOfTasks();
+		int finished = 0;
+		int cycle = numOfResources;
+		while (finished < numOfTasks) {
+			for (int i = 0; i < numOfResources; i++) {
+				for (int j = 0; j < numOfTasks; j++) {
+					
+				}
+			}
+			cycle++;
+		}
 	}
 	
 	public static void main(String[] args) {
 		Main main = new Main();
 		main.processInput(args[0]);
 		main.populateBankersTable();
-//		main.BankersAlgorithm();
+		main.populateTasks();
+		main.BankersAlgorithm();
 	}
 	
 	public ArrayList<Resource> getResources() {
@@ -180,4 +233,19 @@ public class Main {
 		this.numOfResources = numOfResources;
 	}
 	
+	public int getMod() {
+		return mod;
+	}
+
+	public void setMod(int mod) {
+		this.mod = mod;
+	}
+
+	public ArrayList<Task> getTasks() {
+		return tasks;
+	}
+
+	public void setTasks(ArrayList<Task> tasks) {
+		this.tasks = tasks;
+	}
 }

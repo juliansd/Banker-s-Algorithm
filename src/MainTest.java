@@ -8,8 +8,9 @@ class MainTest {
 	public void populateBankersTableTest() {
 		int[][][] actualBankersTable = {
 				{ {4,4},{0,0},{4,4} },
-				{ {4,4},{0,0},{4,4} },
-		};
+				{ {4,4},{0,0},{4,4} },};
+		//              {0,0}
+		//              {4,4}
 		int[] actualTotal = {0,0};
 		int[] actualAvailable = {4,4};
 		
@@ -23,4 +24,8 @@ class MainTest {
 		assertArrayEquals(main.getAvailable(), actualAvailable);
 	}
 
+	@Test
+	public void bankersAlgorithm() {
+		
+	}
 }
