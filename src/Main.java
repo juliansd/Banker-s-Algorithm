@@ -45,7 +45,7 @@ public class Main {
 			Path path = Paths.get(filePath);
 			byte[] bytes = Files.readAllBytes(path);
 			List<String> allLines = Files.readAllLines(path, StandardCharsets.UTF_8);
-			System.out.println(allLines);
+//			System.out.println(allLines);
 			
 			LinkedList<ArrayList<String>> instructions = new LinkedList<ArrayList<String>>();
 			Task t = new Task();
@@ -68,6 +68,11 @@ public class Main {
 					}
 					instructions.addLast(newLine);
 					if (line[0].equals("terminate")) {
+						t.setBlocked(false);
+						t.setAborted(false);
+						t.setFinished(false);
+						t.setCurrentlyAllocated(new int[this.getNumOfResources()]);
+						t.setWaitTime(0);
 						t.setInstructions(instructions);
 						tasks.add(t);
 						t = new Task();
@@ -83,10 +88,112 @@ public class Main {
 		return output;
 	}
 	
+	private static int[] simulate(Task t, ArrayList<Object> tasks, ArrayList<Object> resources, int cycle, int done) {
+		LinkedList<ArrayList<String>> instructions = t.getInstructions();
+		int[] currentlyAllocated = t.getCurrentlyAllocated();
+		int[] cycleDone = new int[2];
+		if (instructions.peek().get(0).equals("initiate")) {
+			instructions.pop();
+		} else if (instructions.peek().get(0).equals("request")) {
+			int delay = Integer.parseInt(instructions.peek().get(2));
+			int resourceType = Integer.parseInt(instructions.peek().get(3));
+			int request = Integer.parseInt(instructions.peek().get(4));
+			if ( (int) resources.get(resourceType-1) >= request) {
+				resources.set(resourceType-1, (int) resources.get(resourceType-1)-request);
+				currentlyAllocated[resourceType-1] += request;
+				t.setCurrentlyAllocated(currentlyAllocated);
+				instructions.pop();
+				t.setBlocked(false);
+			} else {
+				t.setBlocked(true);
+			}
+			cycle += delay;
+		} else if (instructions.peek().get(0).equals("release")) {
+			int delay = Integer.parseInt(instructions.peek().get(2));
+			int resourceType = Integer.parseInt(instructions.peek().get(3));
+			int release = Integer.parseInt(instructions.peek().get(4));
+			resources.set(resourceType-1, (int) resources.get(resourceType-1)+release);
+			currentlyAllocated[resourceType-1] -= release;
+			t.setCurrentlyAllocated(currentlyAllocated);
+			instructions.pop();
+			if (instructions.peek().get(0).equals("terminate")) {
+				done++;
+				t.setFinished(true);
+				t.setFinishTime(cycle+1);
+			}
+			cycle += delay;
+		}
+		cycleDone[0] = cycle;
+		cycleDone[1] = done;
+		return cycleDone;
+	}
+	
 	protected void FIFO(ArrayList<Object> tasks, ArrayList<Object> resources) {
-		ArrayList<Object> running = new ArrayList<Object>();
-		ArrayList<Object> blocked = new ArrayList<Object>();
-		ArrayList<Object> done = new ArrayList<Object>();
+		int done = 0;
+		int aborted = 0;
+		int cycle = 0;
+		
+		while (done < this.getNumOfTasks()-aborted) {
+			for (int i = 0; i < tasks.size(); i++) {
+				int[] cycleDone = new int[2];
+				Task t = (Task) tasks.get(i);
+				if (!t.isAborted() && !t.isFinished()) {
+					if (t.isBlocked()) {
+						t.setWaitTime(t.getWaitTime()+1);
+						cycleDone = simulate(t, tasks, resources, cycle, done);
+					} else
+						cycleDone = simulate(t,tasks, resources, cycle, done);
+					
+					cycle = cycleDone[0];
+					done = cycleDone[1];
+				}
+			}
+			cycle++;
+			int count = 0;
+			for (int i = 0; i < tasks.size(); i++) {
+				Task t = (Task) tasks.get(i);
+				if (!t.isBlocked())
+					break;
+				else
+					count++;
+			}
+			if (count == tasks.size()) {
+				// abort leading task
+				Task toAbort = (Task) tasks.get(0);
+				toAbort.setAborted(true);
+				aborted++;
+				for (int i = 0; i < resources.size(); i++) {
+					resources.set(i, (int) resources.get(i) + toAbort.getCurrentlyAllocated()[i]);
+				}
+			}
+		}
+		int totalFinish = 0;
+		int totalWait = 0;
+		float totalPercentageWait = 0;
+		System.out.println("\t\t FIFO");
+		for (int i = 0; i < tasks.size(); i++) {
+			Task t = (Task) tasks.get(i);
+			int finishTime = t.getFinishTime();
+			int waitTime = t.getWaitTime();
+			float percentageWait;
+			if (t.getFinishTime() != 0)
+				percentageWait = t.getWaitTime()/(float) t.getFinishTime();
+			else
+				percentageWait = 0;
+			int index = i+1;
+			if (t.isAborted())
+				System.out.println("Task " + index + "\taborted");
+			else
+				System.out.println(
+						"Task " + index + "\t" + finishTime + 
+						"\t" + waitTime + "\t" + percentageWait);
+			
+			totalFinish += finishTime;
+			totalWait += waitTime;
+			totalPercentageWait += waitTime;
+		}
+		totalPercentageWait /= totalFinish;
+		System.out.println("total\t" + totalFinish + "\t" + totalWait + "\t" + totalPercentageWait);
 	}
 	
 	public static void main(String[] args) {
@@ -98,14 +205,6 @@ public class Main {
 		main.FIFO(tasks,resources);
 	}
 	
-	public int[][] getProcessedInput() {
-		return processedInput;
-	}
-	
-	public void setProcessedInput(int[][] processedInput) {
-		this.processedInput = processedInput;
-	}
-
 	public int getNumOfTasks() {
 		return numOfTasks;
 	}
@@ -113,60 +212,12 @@ public class Main {
 	public void setNumOfTasks(int numOfTasks) {
 		this.numOfTasks = numOfTasks;
 	}
-
-	public int[] getTotal() {
-		return total;
-	}
-
-	public void setTotal(int[] total) {
-		this.total = total;
-	}
-
-	public int[] getAvailable() {
-		return available;
-	}
-
-	public void setAvailable(int[] available) {
-		this.available = available;
-	}
-
-	public HashMap<Task,int[][]> getBankersTable() {
-		return bankersTable;
-	}
-
-	public void setBankersTable(HashMap<Task,int[][]> bankersTable) {
-		this.bankersTable = bankersTable;
-	}
-
+	
 	public int getNumOfResources() {
 		return numOfResources;
 	}
 
 	public void setNumOfResources(int numOfResources) {
 		this.numOfResources = numOfResources;
-	}
-	
-	public int getMod() {
-		return mod;
-	}
-
-	public void setMod(int mod) {
-		this.mod = mod;
-	}
-
-	public ArrayList<Task> getTasks() {
-		return tasks;
-	}
-
-	public void setTasks(ArrayList<Task> tasks) {
-		this.tasks = tasks;
-	}
-
-	public ArrayList<Task> getTasks2() {
-		return tasks2;
-	}
-
-	public void setTasks2(ArrayList<Task> tasks2) {
-		this.tasks2 = tasks2;
 	}
 }
