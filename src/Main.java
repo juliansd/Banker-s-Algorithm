@@ -4,6 +4,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -73,6 +75,8 @@ public class Main {
 						t.setFinished(false);
 						t.setCurrentlyAllocated(new int[this.getNumOfResources()]);
 						t.setWaitTime(0);
+						t.setFinishTime(-1);
+						t.setIndex(i);
 						t.setInstructions(instructions);
 						tasks.add(t);
 						t = new Task();
@@ -88,7 +92,9 @@ public class Main {
 		return output;
 	}
 	
-	private static int[] simulate(Task t, ArrayList<Object> tasks, ArrayList<Object> resources, int cycle, int done) {
+	private static int[] simulate(
+			Task t, List<Task> tasks, ArrayList<Object> resources, 
+			int[] potentialRelease, int cycle, int done) {
 		LinkedList<ArrayList<String>> instructions = t.getInstructions();
 		int[] currentlyAllocated = t.getCurrentlyAllocated();
 		int[] cycleDone = new int[2];
@@ -105,21 +111,23 @@ public class Main {
 				instructions.pop();
 				t.setBlocked(false);
 			} else {
+				t.setWaitTime(t.getWaitTime()+1);
 				t.setBlocked(true);
+				t.setBlockCycle(cycle);
 			}
 			cycle += delay;
 		} else if (instructions.peek().get(0).equals("release")) {
 			int delay = Integer.parseInt(instructions.peek().get(2));
 			int resourceType = Integer.parseInt(instructions.peek().get(3));
 			int release = Integer.parseInt(instructions.peek().get(4));
-			resources.set(resourceType-1, (int) resources.get(resourceType-1)+release);
+//			resources.set(resourceType-1, (int) resources.get(resourceType-1)+release);
+			potentialRelease[resourceType-1] = release;
 			currentlyAllocated[resourceType-1] -= release;
 			t.setCurrentlyAllocated(currentlyAllocated);
 			instructions.pop();
 			if (instructions.peek().get(0).equals("terminate")) {
 				done++;
 				t.setFinished(true);
-				t.setFinishTime(cycle+1);
 			}
 			cycle += delay;
 		}
@@ -128,44 +136,86 @@ public class Main {
 		return cycleDone;
 	}
 	
-	protected void FIFO(ArrayList<Object> tasks, ArrayList<Object> resources) {
+	protected void FIFO(List<Task> tasks, ArrayList<Object> resources) {
+		
+		// deep copy tasks
+		List<Task> newTasks = new ArrayList<>();
+		for (int i = 0; i < tasks.size(); i++) {
+			newTasks.add(tasks.get(i));
+		}
+		
 		int done = 0;
 		int aborted = 0;
 		int cycle = 0;
 		
 		while (done < this.getNumOfTasks()-aborted) {
-			for (int i = 0; i < tasks.size(); i++) {
+			Collections.sort(newTasks);
+			int[] potentialRelease = new int[resources.size()];
+			
+			for (int i = 0; i < newTasks.size(); i++) {
 				int[] cycleDone = new int[2];
-				Task t = (Task) tasks.get(i);
+				Task t = (Task) newTasks.get(i);
 				if (!t.isAborted() && !t.isFinished()) {
-					if (t.isBlocked()) {
-						t.setWaitTime(t.getWaitTime()+1);
-						cycleDone = simulate(t, tasks, resources, cycle, done);
-					} else
-						cycleDone = simulate(t,tasks, resources, cycle, done);
-					
+					cycleDone = simulate(t, newTasks, resources, potentialRelease, cycle, done);
 					cycle = cycleDone[0];
 					done = cycleDone[1];
 				}
 			}
+			// do release
+			for (int i = 0; i < resources.size(); i++) {
+				resources.set(i, (int) resources.get(i) + potentialRelease[i]);
+			}
 			cycle++;
+			for (int i = 0; i < newTasks.size(); i++) {
+				Task t = (Task) newTasks.get(i);
+				if (t.isFinished() && t.getFinishTime() < 0) {
+					if (aborted == 0)
+						t.setFinishTime(cycle);
+					else {
+						t.setFinishTime(cycle-aborted+1);
+						t.setWaitTime(t.getWaitTime()-aborted+1);
+					}
+				}
+			}
 			int count = 0;
-			for (int i = 0; i < tasks.size(); i++) {
-				Task t = (Task) tasks.get(i);
+			for (int i = 0; i < newTasks.size(); i++) {
+				Task t = (Task) newTasks.get(i);	
 				if (!t.isBlocked())
 					break;
 				else
 					count++;
 			}
-			if (count == tasks.size()) {
+			if (count == newTasks.size()-done) {
 				// abort leading task
-				Task toAbort = (Task) tasks.get(0);
-				toAbort.setAborted(true);
-				aborted++;
-				for (int i = 0; i < resources.size(); i++) {
-					resources.set(i, (int) resources.get(i) + toAbort.getCurrentlyAllocated()[i]);
+				boolean canBreak = false;
+				for (int i = 0; i < tasks.size(); i++) {
+					if (!tasks.get(i).isAborted() && !tasks.get(i).isFinished()) {
+						Task toAbort = (Task) tasks.get(i);
+						if (!toAbort.isFinished()) {
+							toAbort.setAborted(true);
+							aborted++;
+							for (int j = 0; j < resources.size(); j++) {
+								resources.set(j, (int) resources.get(j) + toAbort.getCurrentlyAllocated()[j]);
+							}
+							for (int j = 0; j < newTasks.size(); j++) {
+								Task t = newTasks.get(j);
+								if (!t.isAborted() && !t.isFinished()) {
+									if (t.getInstructions().peek().get(0).equals("request")) {
+										int index = Integer.parseInt(t.getInstructions().peek().get(3));
+										if (Integer.parseInt(t.getInstructions().peek().get(4)) <= (int) resources.get(index-1)) {
+											canBreak = true;
+											break;
+										}
+									}
+								}
+							}
+						}
+					}
+					if (canBreak)
+						break;
 				}
 			}
+			
 		}
 		int totalFinish = 0;
 		int totalWait = 0;
@@ -183,14 +233,14 @@ public class Main {
 			int index = i+1;
 			if (t.isAborted())
 				System.out.println("Task " + index + "\taborted");
-			else
+			else {
 				System.out.println(
 						"Task " + index + "\t" + finishTime + 
 						"\t" + waitTime + "\t" + percentageWait);
-			
-			totalFinish += finishTime;
-			totalWait += waitTime;
-			totalPercentageWait += waitTime;
+				totalFinish += finishTime;
+				totalWait += waitTime;
+				totalPercentageWait += waitTime;
+			}
 		}
 		totalPercentageWait /= totalFinish;
 		System.out.println("total\t" + totalFinish + "\t" + totalWait + "\t" + totalPercentageWait);
@@ -199,7 +249,11 @@ public class Main {
 	public static void main(String[] args) {
 		Main main = new Main();
 		ArrayList<ArrayList<Object>> tasksResources = main.processInput(args[0]);
-		ArrayList<Object> tasks = tasksResources.get(0);
+		List<Task> tasks = new ArrayList<>();
+		for (int i = 0; i < tasksResources.get(0).size(); i++) {
+			Task t = (Task) tasksResources.get(0).get(i);
+			tasks.add(t);
+		}
 		ArrayList<Object> resources = tasksResources.get(1);
 		
 		main.FIFO(tasks,resources);
