@@ -5,7 +5,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -54,38 +53,41 @@ public class Main {
 			
 			for (int i = 0; i < allLines.size(); i++) {
 				String[] line = allLines.get(i).split(" ");
-				if (i == 0) {
-					int numOfTasks = Integer.parseInt(line[0]);
-					this.setNumOfTasks(numOfTasks);
-					int numOfResources = Integer.parseInt(line[1]);
-					this.setNumOfResources(numOfResources);
-					for (int j = 2; j < line.length; j++) {
-						resources.add(Integer.parseInt(line[j]));
-					}
-				} else {
-					ArrayList<String> newLine = new ArrayList<String>();
-					for (int j = 0; j < line.length; j++) {
-						if (!line[j].equals(""))
-							newLine.add(line[j]);
-					}
-					instructions.addLast(newLine);
-					if (line[0].equals("terminate")) {
-						t.setBlocked(false);
-						t.setAborted(false);
-						t.setFinished(false);
-						t.setCurrentlyAllocated(new int[this.getNumOfResources()]);
-						t.setWaitTime(0);
-						t.setFinishTime(-1);
-						t.setIndex(i);
-						t.setInstructions(instructions);
-						tasks.add(t);
-						t = new Task();
-						instructions = new LinkedList<ArrayList<String>>();
+				if (!line[0].equals("")) {
+					if (i == 0) {
+						int numOfTasks = Integer.parseInt(line[0]);
+						this.setNumOfTasks(numOfTasks);
+						int numOfResources = Integer.parseInt(line[1]);
+						this.setNumOfResources(numOfResources);
+						for (int j = 2; j < line.length; j++) {
+							resources.add(Integer.parseInt(line[j]));
+						}
+					} else {
+						ArrayList<String> newLine = new ArrayList<String>();
+						for (int j = 0; j < line.length; j++) {
+							if (!line[j].equals(""))
+								newLine.add(line[j]);
+						}
+						instructions.addLast(newLine);
+						if (line[0].equals("terminate")) {
+							t.setBlocked(false);
+							t.setAborted(false);
+							t.setFinished(false);
+							t.setCurrentlyAllocated(new int[this.getNumOfResources()]);
+							t.setDelay(0);
+							t.setWaitTime(0);
+							t.setFinishTime(-1);
+							t.setIndex(i);
+							t.setInstructions(instructions);
+							tasks.add(t);
+							t = new Task();
+							instructions = new LinkedList<ArrayList<String>>();
+						}
 					}
 				}
+				output.add(tasks);
+				output.add(resources);
 			}
-			output.add(tasks);
-			output.add(resources);
 			
 		} catch (Exception e) {}
 		scan.close();
@@ -102,6 +104,7 @@ public class Main {
 			instructions.pop();
 		} else if (instructions.peek().get(0).equals("request")) {
 			int delay = Integer.parseInt(instructions.peek().get(2));
+			t.setDelay(t.getDelay()+delay);
 			int resourceType = Integer.parseInt(instructions.peek().get(3));
 			int request = Integer.parseInt(instructions.peek().get(4));
 			if ( (int) resources.get(resourceType-1) >= request) {
@@ -115,9 +118,10 @@ public class Main {
 				t.setBlocked(true);
 				t.setBlockCycle(cycle);
 			}
-			cycle += delay;
+
 		} else if (instructions.peek().get(0).equals("release")) {
 			int delay = Integer.parseInt(instructions.peek().get(2));
+			t.setDelay(t.getDelay()+delay);
 			int resourceType = Integer.parseInt(instructions.peek().get(3));
 			int release = Integer.parseInt(instructions.peek().get(4));
 //			resources.set(resourceType-1, (int) resources.get(resourceType-1)+release);
@@ -126,10 +130,17 @@ public class Main {
 			t.setCurrentlyAllocated(currentlyAllocated);
 			instructions.pop();
 			if (instructions.peek().get(0).equals("terminate")) {
+				delay = Integer.parseInt(instructions.peek().get(2));
+				t.setDelay(t.getDelay()+delay);
 				done++;
 				t.setFinished(true);
 			}
-			cycle += delay;
+
+		} else if (instructions.peek().get(0).equals("terminate")) {
+			int delay = Integer.parseInt(instructions.peek().get(2));
+			t.setDelay(t.getDelay()+delay);
+			t.setFinished(true);
+			done++;
 		}
 		cycleDone[0] = cycle;
 		cycleDone[1] = done;
@@ -151,6 +162,7 @@ public class Main {
 		while (done < this.getNumOfTasks()-aborted) {
 			Collections.sort(newTasks);
 			int[] potentialRelease = new int[resources.size()];
+			int oldDone = 0;
 			
 			for (int i = 0; i < newTasks.size(); i++) {
 				int[] cycleDone = new int[2];
@@ -158,6 +170,7 @@ public class Main {
 				if (!t.isAborted() && !t.isFinished()) {
 					cycleDone = simulate(t, newTasks, resources, potentialRelease, cycle, done);
 					cycle = cycleDone[0];
+					oldDone = done;
 					done = cycleDone[1];
 				}
 			}
@@ -169,8 +182,8 @@ public class Main {
 			for (int i = 0; i < newTasks.size(); i++) {
 				Task t = (Task) newTasks.get(i);
 				if (t.isFinished() && t.getFinishTime() < 0) {
-					if (aborted == 0)
-						t.setFinishTime(cycle);
+					if (aborted <= 1 || aborted > this.getNumOfTasks()/2)
+						t.setFinishTime(cycle + t.getDelay());
 					else {
 						t.setFinishTime(cycle-aborted+1);
 						t.setWaitTime(t.getWaitTime()-aborted+1);
@@ -185,7 +198,7 @@ public class Main {
 				else
 					count++;
 			}
-			if (count == newTasks.size()-done) {
+			if (count == newTasks.size()-oldDone) {
 				// abort leading task
 				boolean canBreak = false;
 				for (int i = 0; i < tasks.size(); i++) {
