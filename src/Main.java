@@ -12,15 +12,9 @@ import java.util.Scanner;
 
 public class Main {
 
-	private HashMap<Task, int[][]> bankersTable;
-	private ArrayList<Task> tasks;
-	private ArrayList<Task> tasks2;
-	private int[][] processedInput;
-	private int[] total;
-	private int[] available;
 	private int numOfTasks;
 	private int numOfResources;
-	private int mod;
+	private boolean consecutiveRelease;
 	
 	@SuppressWarnings("resource")
 	protected ArrayList<ArrayList<Object>> processInput(String filePath) {
@@ -32,21 +26,14 @@ public class Main {
 		Scanner scan = new Scanner(System.in);
 		
 		File file = new File(filePath);
-		
-		int count = 0;
-		int row = 0;
-		int col = 0;
-		
-		int[][] processedInput = null;
+
 		
 		try {
 			
 			scan = new Scanner(file);
 			
 			Path path = Paths.get(filePath);
-			byte[] bytes = Files.readAllBytes(path);
 			List<String> allLines = Files.readAllLines(path, StandardCharsets.UTF_8);
-//			System.out.println(allLines);
 			
 			LinkedList<ArrayList<String>> instructions = new LinkedList<ArrayList<String>>();
 			Task t = new Task();
@@ -96,58 +83,113 @@ public class Main {
 	
 	private static int[] simulate(
 			Task t, List<Task> tasks, ArrayList<Object> resources, 
-			int[] potentialRelease, int cycle, int done) {
+			int[] potentialRelease, int cycle, int done, boolean bankers, 
+			HashMap<Task,int[][]> bankersTable, int[] available) {
+		
 		LinkedList<ArrayList<String>> instructions = t.getInstructions();
 		int[] currentlyAllocated = t.getCurrentlyAllocated();
 		int[] cycleDone = new int[2];
-		if (instructions.peek().get(0).equals("initiate")) {
-			instructions.pop();
-		} else if (instructions.peek().get(0).equals("request")) {
-			int delay = Integer.parseInt(instructions.peek().get(2));
-			t.setDelay(t.getDelay()+delay);
-			int resourceType = Integer.parseInt(instructions.peek().get(3));
-			int request = Integer.parseInt(instructions.peek().get(4));
-			if ( (int) resources.get(resourceType-1) >= request) {
-				resources.set(resourceType-1, (int) resources.get(resourceType-1)-request);
-				currentlyAllocated[resourceType-1] += request;
-				t.setCurrentlyAllocated(currentlyAllocated);
-				instructions.pop();
-				t.setBlocked(false);
-			} else {
-				t.setWaitTime(t.getWaitTime()+1);
-				t.setBlocked(true);
-				t.setBlockCycle(cycle);
-			}
-
-		} else if (instructions.peek().get(0).equals("release")) {
-			int delay = Integer.parseInt(instructions.peek().get(2));
-			t.setDelay(t.getDelay()+delay);
-			int resourceType = Integer.parseInt(instructions.peek().get(3));
-			int release = Integer.parseInt(instructions.peek().get(4));
-//			resources.set(resourceType-1, (int) resources.get(resourceType-1)+release);
-			potentialRelease[resourceType-1] = release;
-			currentlyAllocated[resourceType-1] -= release;
-			t.setCurrentlyAllocated(currentlyAllocated);
-			instructions.pop();
-			if (instructions.peek().get(0).equals("terminate")) {
-				delay = Integer.parseInt(instructions.peek().get(2));
-				t.setDelay(t.getDelay()+delay);
-				done++;
-				t.setFinished(true);
-			}
-
-		} else if (instructions.peek().get(0).equals("terminate")) {
-			int delay = Integer.parseInt(instructions.peek().get(2));
-			t.setDelay(t.getDelay()+delay);
+		int delay = Integer.parseInt(instructions.peek().get(2));
+		if (delay == 1 && instructions.peek().get(0).equals("terminate")) {
+			delay--;
 			t.setFinished(true);
 			done++;
+			cycleDone[0] = cycle;
+			cycleDone[1] = done;
 		}
-		cycleDone[0] = cycle;
-		cycleDone[1] = done;
+		else if (delay > 0) {
+			delay--;
+			instructions.peek().set(2, Integer.toString(delay));
+			cycleDone[0] = cycle;
+			cycleDone[1] = done;
+		} else {
+			if (instructions.peek().get(0).equals("initiate")) {
+				instructions.pop();
+			} else if (instructions.peek().get(0).equals("request")) {
+				t.setDelay(t.getDelay()+delay);
+				int resourceType = Integer.parseInt(instructions.peek().get(3));
+				int request = Integer.parseInt(instructions.peek().get(4));
+				if ( (int) available[resourceType-1] >= request) {
+					if (bankers) {
+						// need to make sure in safe state
+						if (isSafe(bankersTable, tasks, t, available)) {
+							resources.set(resourceType-1, (int) resources.get(resourceType-1)-request);
+							currentlyAllocated[resourceType-1] += request;
+							t.setCurrentlyAllocated(currentlyAllocated);
+							instructions.pop();
+							t.setBlocked(false);
+						} else {
+							t.setWaitTime(t.getWaitTime()+1);
+							t.setBlocked(true);
+							t.setBlockCycle(cycle);
+						}
+					} else {
+						resources.set(resourceType-1, (int) resources.get(resourceType-1)-request);
+						available[resourceType-1] -= request;
+						currentlyAllocated[resourceType-1] += request;
+						t.setCurrentlyAllocated(currentlyAllocated);
+						instructions.pop();
+						t.setBlocked(false);
+					}
+				} else {
+					t.setWaitTime(t.getWaitTime()+1);
+					t.setBlocked(true);
+					t.setBlockCycle(cycle);
+				}
+	
+			} else if (instructions.peek().get(0).equals("release")) {
+				t.setDelay(t.getDelay()+delay);
+				int resourceType = Integer.parseInt(instructions.peek().get(3));
+				int release = Integer.parseInt(instructions.peek().get(4));
+				potentialRelease[resourceType-1] += release;
+				currentlyAllocated[resourceType-1] -= release;
+				bankersTable.get(t)[2][resourceType-1] += release;
+				bankersTable.get(t)[1][resourceType-1] -= release;
+				t.setCurrentlyAllocated(currentlyAllocated);
+				instructions.removeFirst();
+				if (instructions.peek().get(0).equals("terminate")) {
+					if (Integer.parseInt(instructions.peek().get(2)) == 0) {
+						delay = Integer.parseInt(instructions.peek().get(2));
+						t.setDelay(t.getDelay()+delay);
+						done++;
+						t.setFinished(true);
+					}
+				} else if (instructions.peek().get(0).equals("release")) {
+					while (instructions.peek().get(0).equals("release")) {
+						delay = Integer.parseInt(instructions.peek().get(2));
+						t.setDelay(t.getDelay()+delay);
+						resourceType = Integer.parseInt(instructions.peek().get(3));
+						release = Integer.parseInt(instructions.peek().get(4));
+						potentialRelease[resourceType-1] += release;
+						currentlyAllocated[resourceType-1] -= release;
+						bankersTable.get(t)[2][resourceType-1] += release;
+						bankersTable.get(t)[1][resourceType-1] -= release;
+						t.setCurrentlyAllocated(currentlyAllocated);
+						instructions.pop();
+					}
+					if (instructions.peek().get(0).equals("terminate")) {
+						if (Integer.parseInt(instructions.peek().get(2)) == 0) {
+							delay = Integer.parseInt(instructions.peek().get(2));
+							t.setDelay(t.getDelay()+delay);
+							done++;
+							t.setFinished(true);
+						}
+					}
+				}
+	
+			} else if (instructions.peek().get(0).equals("terminate")) {
+				t.setDelay(t.getDelay()+delay);
+				t.setFinished(true);
+				done++;
+			}
+			cycleDone[0] = cycle;
+			cycleDone[1] = done;
+		}
 		return cycleDone;
 	}
 	
-	protected void FIFO(List<Task> tasks, ArrayList<Object> resources) {
+	protected void FIFO(List<Task> tasks, ArrayList<Object> resources, boolean bankers, 
+			HashMap<Task,int[][]> bankersTable, int[] available) {
 		
 		// deep copy tasks
 		List<Task> newTasks = new ArrayList<>();
@@ -159,16 +201,22 @@ public class Main {
 		int aborted = 0;
 		int cycle = 0;
 		
+		int[] potentialRelease = new int[resources.size()];
+		
 		while (done < this.getNumOfTasks()-aborted) {
 			Collections.sort(newTasks);
-			int[] potentialRelease = new int[resources.size()];
+			
+			potentialRelease = new int[resources.size()];
+			
+			this.setConsecutiveRelease(false);
+			
 			int oldDone = 0;
 			
 			for (int i = 0; i < newTasks.size(); i++) {
 				int[] cycleDone = new int[2];
 				Task t = (Task) newTasks.get(i);
 				if (!t.isAborted() && !t.isFinished()) {
-					cycleDone = simulate(t, newTasks, resources, potentialRelease, cycle, done);
+					cycleDone = simulate(t, newTasks, resources, potentialRelease, cycle, done, bankers, bankersTable, available);
 					cycle = cycleDone[0];
 					oldDone = done;
 					done = cycleDone[1];
@@ -177,13 +225,31 @@ public class Main {
 			// do release
 			for (int i = 0; i < resources.size(); i++) {
 				resources.set(i, (int) resources.get(i) + potentialRelease[i]);
+				available[i] += potentialRelease[i];
+			}
+			for (int i = 0; i < newTasks.size(); i++) {
+				boolean nonZero = false;
+				Task t = (Task) newTasks.get(i);
+				if (t.isAborted()) {
+					t.setBlocked(false);
+					int[] currentlyAllocated = t.getCurrentlyAllocated();
+					for (int j = 0; j < currentlyAllocated.length; j++) {
+						if (currentlyAllocated[j] != 0) {
+							nonZero = true;
+							available[j] += currentlyAllocated[j];
+							currentlyAllocated[j] = 0;
+						}
+					}
+					if (nonZero)
+						aborted++;
+				}
 			}
 			cycle++;
 			for (int i = 0; i < newTasks.size(); i++) {
 				Task t = (Task) newTasks.get(i);
 				if (t.isFinished() && t.getFinishTime() < 0) {
 					if (aborted <= 1 || aborted > this.getNumOfTasks()/2)
-						t.setFinishTime(cycle + t.getDelay());
+						t.setFinishTime(cycle);
 					else {
 						t.setFinishTime(cycle-aborted+1);
 						t.setWaitTime(t.getWaitTime()-aborted+1);
@@ -209,7 +275,9 @@ public class Main {
 							aborted++;
 							for (int j = 0; j < resources.size(); j++) {
 								resources.set(j, (int) resources.get(j) + toAbort.getCurrentlyAllocated()[j]);
+								available[j] += toAbort.getCurrentlyAllocated()[j];
 							}
+							toAbort.setCurrentlyAllocated(new int[resources.size()]);
 							for (int j = 0; j < newTasks.size(); j++) {
 								Task t = newTasks.get(j);
 								if (!t.isAborted() && !t.isFinished()) {
@@ -233,7 +301,12 @@ public class Main {
 		int totalFinish = 0;
 		int totalWait = 0;
 		float totalPercentageWait = 0;
-		System.out.println("\t\t FIFO");
+		if (bankers) {
+			System.out.println("\tBANKER'S");
+		} else {
+			System.out.println("\t   FIFO");
+		}
+		
 		for (int i = 0; i < tasks.size(); i++) {
 			Task t = (Task) tasks.get(i);
 			int finishTime = t.getFinishTime();
@@ -259,17 +332,121 @@ public class Main {
 		System.out.println("total\t" + totalFinish + "\t" + totalWait + "\t" + totalPercentageWait);
 	}
 	
+	private static boolean isSafe(HashMap<Task,int[][]> bankersTable, List<Task> tasks, Task t, int[] available) {
+		
+		int[] pretendAvailable = new int[available.length];
+		for (int i = 0; i < available.length; i++) {
+			pretendAvailable[i] = available[i];
+		}
+		boolean isSafe = false;
+		
+		// pretend to grant request
+		// check if any other process can finish
+		// if no other process can finish, repeat
+		
+		ArrayList<String> instruction = t.getInstructions().peek();
+		int request = Integer.parseInt(instruction.get(4));
+		
+		int resourceType = Integer.parseInt(instruction.get(3))-1;
+		if (request > bankersTable.get(t)[2][resourceType]) {
+			t.setAborted(true);
+			return isSafe;
+		}
+		
+		pretendAvailable[resourceType] -= request;
+		for (int i = 0; i < tasks.size(); i++) {
+			Task e = tasks.get(i);
+			if (!e.isFinished()) {
+				int[] pretendMax = new int[bankersTable.get(e)[2].length];
+				for (int j = 0; j < pretendMax.length; j++) {
+					pretendMax[j] = bankersTable.get(e)[2][j];
+				}
+				if (e.equals(t))
+					pretendMax[resourceType] -= request;
+				
+				if (pretendAvailable[resourceType] >= pretendMax[resourceType]) {
+					available[resourceType] -= request;
+					bankersTable.get(t)[2][resourceType] -= request;
+					bankersTable.get(t)[1][resourceType] += request;
+					isSafe = true;
+					break;
+				}
+			}
+		}
+		
+		return isSafe;
+	}
+	
+	private HashMap<Task,int[][]> populateBankersTable(List<Task> tasks, ArrayList<Object> resources) {
+		HashMap<Task,int[][]> bankersTable = new HashMap<Task,int[][]>();
+		for (Task t : tasks) {
+			int[][] taskTableData = new int[3][resources.size()];
+			for (int i = 0; i < taskTableData.length; i++) {
+				int[] initClaimMax = new int[resources.size()];
+				for (int j = 0; j < initClaimMax.length; j++) {
+					if (i == 0 || i == 2) {
+						initClaimMax[j] = Integer.parseInt(t.getInstructions().get(0).get(4));
+					} 
+				}
+				taskTableData[i] = initClaimMax;
+			}
+			bankersTable.put(t, taskTableData);
+		}
+		return bankersTable;
+	}
+	
+	private static List<Task> controlConsecutiveRelease(List<Task> tasks) {
+		List<Task> output = new ArrayList<>();
+		for (Task t : tasks) {
+			int c = 0;
+			int i = 0;
+			int j = i+1;
+			ArrayList<String> first = null;
+			while (j < t.getInstructions().size()) {
+				if (t.getInstructions().get(i).get(0).equals("release") && t.getInstructions().get(j).get(0).equals("release")) {
+					c++;
+					if (c == 1)
+						first = t.getInstructions().get(i);
+					if (!first.equals(null)) {
+						first.set(2, Integer.toString(c));
+					}
+				}
+				i++;
+				j++;
+			}
+			output.add(t);
+		}
+		return output;
+	}
+	
 	public static void main(String[] args) {
 		Main main = new Main();
+		
 		ArrayList<ArrayList<Object>> tasksResources = main.processInput(args[0]);
 		List<Task> tasks = new ArrayList<>();
+		List<Task> tasks2 = new ArrayList<>();
 		for (int i = 0; i < tasksResources.get(0).size(); i++) {
 			Task t = (Task) tasksResources.get(0).get(i);
+			Task t2 = new Task(t);
 			tasks.add(t);
+			tasks2.add(t2);
 		}
-		ArrayList<Object> resources = tasksResources.get(1);
 		
-		main.FIFO(tasks,resources);
+		tasks2 = controlConsecutiveRelease(tasks2);
+		
+		ArrayList<Object> resources = tasksResources.get(1);
+		ArrayList<Object> resources2 = new ArrayList<Object>(tasksResources.get(1));
+		int[] available = new int[resources.size()];
+		int[] available2 = new int[resources.size()];
+		HashMap<Task,int[][]> bankersTable = main.populateBankersTable(tasks, resources);
+		HashMap<Task,int[][]> bankersTable2 = main.populateBankersTable(tasks2, resources2);
+		for (int i = 0; i < resources.size(); i++) {
+			available[i] = (int) resources.get(i);
+			available2[i] = (int) resources2.get(i);
+		}
+		main.FIFO(tasks, resources, false, bankersTable, available);
+		System.out.println("");
+		main.FIFO(tasks2, resources2, true, bankersTable2, available2);
 	}
 	
 	public int getNumOfTasks() {
@@ -286,5 +463,13 @@ public class Main {
 
 	public void setNumOfResources(int numOfResources) {
 		this.numOfResources = numOfResources;
+	}
+
+	public boolean isConsecutiveRelease() {
+		return consecutiveRelease;
+	}
+
+	public void setConsecutiveRelease(boolean consecutiveRelease) {
+		this.consecutiveRelease = consecutiveRelease;
 	}
 }
