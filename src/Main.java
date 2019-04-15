@@ -35,46 +35,33 @@ public class Main {
 			Path path = Paths.get(filePath);
 			List<String> allLines = Files.readAllLines(path, StandardCharsets.UTF_8);
 			
-			LinkedList<ArrayList<String>> instructions = new LinkedList<ArrayList<String>>();
-			Task t = new Task();
-			
-			for (int i = 0; i < allLines.size(); i++) {
-				String[] line = allLines.get(i).split(" ");
-				if (!line[0].equals("")) {
-					if (i == 0) {
-						int numOfTasks = Integer.parseInt(line[0]);
-						this.setNumOfTasks(numOfTasks);
-						int numOfResources = Integer.parseInt(line[1]);
-						this.setNumOfResources(numOfResources);
-						for (int j = 2; j < line.length; j++) {
-							resources.add(Integer.parseInt(line[j]));
-						}
-					} else {
-						ArrayList<String> newLine = new ArrayList<String>();
-						for (int j = 0; j < line.length; j++) {
-							if (!line[j].equals(""))
-								newLine.add(line[j]);
-						}
-						instructions.addLast(newLine);
-						if (line[0].equals("terminate")) {
-							t.setBlocked(false);
-							t.setAborted(false);
-							t.setFinished(false);
-							t.setCurrentlyAllocated(new int[this.getNumOfResources()]);
-							t.setDelay(0);
-							t.setWaitTime(0);
-							t.setFinishTime(-1);
-							t.setIndex(i);
-							t.setInstructions(instructions);
-							tasks.add(t);
-							t = new Task();
-							instructions = new LinkedList<ArrayList<String>>();
-						}
-					}
-				}
-				output.add(tasks);
-				output.add(resources);
+			String[] firstLine = allLines.get(0).split(" ");
+			this.setNumOfTasks(Integer.parseInt(firstLine[0]));
+			this.setNumOfResources(Integer.parseInt(firstLine[1]));
+			for (int j = 2; j < firstLine.length; j++) {
+				resources.add(Integer.parseInt(firstLine[j]));
 			}
+			
+			for (int i = 0; i < this.getNumOfTasks(); i++) {
+				LinkedList<ArrayList<String>> instructions = new LinkedList<ArrayList<String>>();
+				tasks.add(new Task(instructions, this.getNumOfResources(), i));
+			}
+			
+			for (int i = 1; i < allLines.size(); i++) {
+				String[] line = allLines.get(i).split(" ");
+				ArrayList<String> newLine = new ArrayList<String>();
+				for (int j = 0; j < line.length; j++) {
+					if (!line[j].equals(""))
+						newLine.add(line[j]);
+				}
+				Task t = (Task) tasks.get(Integer.parseInt(newLine.get(1))-1);
+				LinkedList<ArrayList<String>> instructions = t.getInstructions();
+				instructions.add(newLine);
+				t.setInstructions(instructions);
+			}
+			
+			output.add(tasks);
+			output.add(resources);
 			
 		} catch (Exception e) {}
 		scan.close();
@@ -154,7 +141,7 @@ public class Main {
 						done++;
 						t.setFinished(true);
 					}
-				} else if (instructions.peek().get(0).equals("release")) {
+				} else if (instructions.peek().get(0).equals("release") && bankers) {
 					while (instructions.peek().get(0).equals("release")) {
 						delay = Integer.parseInt(instructions.peek().get(2));
 						t.setDelay(t.getDelay()+delay);

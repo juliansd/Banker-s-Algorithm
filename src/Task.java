@@ -17,6 +17,18 @@ public class Task implements Comparable<Task>{
 
 	public Task() {}
 	
+	public Task(LinkedList<ArrayList<String>> instructions, int numOfResources, int index) {
+		this.setBlocked(false);
+		this.setAborted(false);
+		this.setFinished(false);
+		this.setCurrentlyAllocated(new int[numOfResources]);
+		this.setDelay(0);
+		this.setWaitTime(0);
+		this.setFinishTime(-1);
+		this.setIndex(index);
+		this.setInstructions(instructions);
+	}
+	
 	public Task(Task t) {
 		LinkedList<ArrayList<String>> newInstructions = new LinkedList<ArrayList<String>>();
 		for (int i = 0; i < t.getInstructions().size(); i++) {
