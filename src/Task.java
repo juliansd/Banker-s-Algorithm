@@ -15,8 +15,20 @@ public class Task implements Comparable<Task>{
 	private int delay;
 	private float percentageWait;
 
+	/**
+	 * Default constructor.
+	 */
 	public Task() {}
 	
+	/**
+	 * Constructor used in initial construction of Task object.
+	 * @param instructions A LinkedList which holds String arrays which are
+	 * the tasks instructions.
+	 * @param numOfResources An int which is the total number of resources.
+	 * @param index The "order" of which the tasks are given by the input. For example
+	 * in the input after the type of instruction, there is a number which would be the "index"
+	 * of the task.
+	 */
 	public Task(LinkedList<ArrayList<String>> instructions, int numOfResources, int index) {
 		this.setBlocked(false);
 		this.setAborted(false);
@@ -29,6 +41,10 @@ public class Task implements Comparable<Task>{
 		this.setInstructions(instructions);
 	}
 	
+	/**
+	 * Deep copy constructor
+	 * @param t Task to make a deep copy of.
+	 */
 	public Task(Task t) {
 		LinkedList<ArrayList<String>> newInstructions = new LinkedList<ArrayList<String>>();
 		for (int i = 0; i < t.getInstructions().size(); i++) {
@@ -119,7 +135,11 @@ public class Task implements Comparable<Task>{
 	public void setPercentageWait(float percentageWait) {
 		this.percentageWait = percentageWait;
 	}
-
+	
+	/**
+	 * Overridden method which orders Tasks based on whether or not they are blocked, and then
+	 * by index.
+	 */
 	@Override
 	public int compareTo(Task t) {
 		if (this.isBlocked() && !t.isBlocked()) 

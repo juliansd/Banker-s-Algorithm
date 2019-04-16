@@ -10,12 +10,32 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Scanner;
 
+/**
+ * This class handles the main functionality of the project. It implements FIFO and Banker's
+ * Algorithm accordingly and acts as an object which holds the number of tasks, resources,
+ * and consecutive releases for each task.
+ * @author juliansmithdeniro
+ *
+ */
 public class Main {
 
 	private int numOfTasks;
 	private int numOfResources;
+	
+	/**
+	 * This instance variable stores the number of consecutive release instructions
+	 * each task asks for.
+	 */
 	private boolean consecutiveRelease;
 	
+	/**
+	 * Handles the processing of the input text file and returns a 2D ArrayList which
+	 * consists of each Task object as well as the resources and their starting values.
+	 * @param filePath A String which points to the location of the input in
+	 * the system.
+	 * @return A 2D ArrayList which holds the task objects and resource values to be used
+	 * in the rest of the current instance of the project.
+	 */
 	@SuppressWarnings("resource")
 	protected ArrayList<ArrayList<Object>> processInput(String filePath) {
 		
@@ -68,6 +88,31 @@ public class Main {
 		return output;
 	}
 	
+	/**
+	 * Static function which implements the discrete simulation for FIFO and Banker's
+	 * Algorithm for the resource allocation of tasks.
+	 * @param t Task object currently being evaluated for instruction.
+	 * @param tasks An ArrayList which holds every task for the current
+	 * instance of the project.
+	 * @param resources An ArrayList which holds every value for each resource in
+	 * the current instance of the project.
+	 * @param potentialRelease An array consisitng of ints which are values that represent
+	 * how much of a resource type will be released for the next cycle. i.e. potential[i] = k
+	 * means next cycle k of resource type i+1 will be released and free for next cycle.
+	 * @param cycle An int representing the current cycle.
+	 * @param done An int representing how many tasks have been completed since the running
+	 * of the project.
+	 * @param bankers A boolean which lets the function know if we are running Banker's
+	 * Algorithm or FIFO
+	 * @param bankersTable A HashMap which takes Tasks as keys and 2D int arrays as it's
+	 * values and is representative of the table used to see if a current state is safe
+	 * as in Professor Gottlieb's slides.
+	 * @param available A second array holding resources currently available. i.e. available[i] = k
+	 * means resource type i+1 has k available units.
+	 * @return An int array which holds the cycle and how many tasks are finished. We do this
+	 * because this information we need after each run of simulate, so we store these primitve
+	 * values in an array and return.
+	 */
 	private static int[] simulate(
 			Task t, List<Task> tasks, ArrayList<Object> resources, 
 			int[] potentialRelease, int cycle, int done, boolean bankers, 
@@ -175,6 +220,19 @@ public class Main {
 		return cycleDone;
 	}
 	
+	/**
+	 * A function which simulates FIFO for bankers = false, otherwise it simulates Banker's
+	 * Algorithm.
+	 * @param tasks An ArrayList which holds the task objects.
+	 * @param resources An ArrayList holding the values for the resources in the currnet
+	 * running of the project.
+	 * @param bankers A boolean which tells the function if we are doing FIFO or Banker's
+	 * @param bankersTable A HashMap which takes Tasks as keys and 2D int arrays as it's
+	 * values and is representative of the table used to see if a current state is safe
+	 * as in Professor Gottlieb's slides.
+	 * @param available A second array holding resources currently available. i.e. available[i] = k
+	 * means resource type i+1 has k available units.
+	 */
 	protected void FIFO(List<Task> tasks, ArrayList<Object> resources, boolean bankers, 
 			HashMap<Task,int[][]> bankersTable, int[] available) {
 		
@@ -319,6 +377,17 @@ public class Main {
 		System.out.println("total\t" + totalFinish + "\t" + totalWait + "\t" + totalPercentageWait);
 	}
 	
+	/**
+	 * 
+	 * @param bankersTable A HashMap which takes Tasks as keys and 2D int arrays as it's
+	 * values and is representative of the table used to see if a current state is safe
+	 * as in Professor Gottlieb's slides.
+	 * @param tasks An ArrayList which holds the task objects.
+	 * @param t Task object currently being evaluated for instruction.
+	 * @param available A second array holding resources currently available. i.e. available[i] = k
+	 * means resource type i+1 has k available units.
+	 * @return 
+	 */
 	private static boolean isSafe(HashMap<Task,int[][]> bankersTable, List<Task> tasks, Task t, int[] available) {
 		
 		int[] pretendAvailable = new int[available.length];
@@ -364,6 +433,13 @@ public class Main {
 		return isSafe;
 	}
 	
+	/**
+	 * Populates the Banker's Table (which is a HashMap) with the correct values.
+	 * @param tasks An ArrayList which holds the task objects.
+	 * @param resources An ArrayList which holds every value for each resource in
+	 * the current instance of the project.
+	 * @return A HashMap which is the Banker's Table.
+	 */
 	private HashMap<Task,int[][]> populateBankersTable(List<Task> tasks, ArrayList<Object> resources) {
 		HashMap<Task,int[][]> bankersTable = new HashMap<Task,int[][]>();
 		for (Task t : tasks) {
@@ -382,6 +458,13 @@ public class Main {
 		return bankersTable;
 	}
 	
+	/**
+	 * Edits Task objects initially constructed with an appropriate value
+	 * to control the consecutive releases. This is only relevant to tasks
+	 * used in Banker's Algorithm. 
+	 * @param tasks An ArrayList which holds the task objects.
+	 * @return A new List of Task objects which are updated.
+	 */
 	private static List<Task> controlConsecutiveRelease(List<Task> tasks) {
 		List<Task> output = new ArrayList<>();
 		for (Task t : tasks) {
